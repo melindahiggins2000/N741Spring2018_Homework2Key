@@ -1,0 +1,264 @@
+---
+title: "Homework 2 - Answer Key"
+author: "Vicki Hertzberg and Melinda Higgins"
+date: "2/14/2018"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# *Due Date* is 21 February 2018
+
+This homework is meant to further your `dplyr` and `ggplot2` skills. 
+
+First, install the package 
+
+* `car`
+
+## Installing the `car` package
+
+We found some hiccups when we were designing this homework. With a little sleuthing, we were able to figure out that some of the issues related to installing the package and dependent package called `quantreg`. So before you install `car` use the following R commands:
+
+* install.packages("quantreg", dependencies=TRUE)
+* install.packages("car", dependencies=TRUE)
+
+You might get this question in the console: 
+
+"Do you want to install from sources the package which needs compilation" followed by a prompt for you to respond yes or no, which looks like
+
+`y/n:`
+
+Usually when you see this prompt in RStudio, `y` is a good default response. However when installing `quantreg` and `car`, we found that if you answered `n` to the prompts, all will work well. _(answering `y` here leads to other issues you can avoid for now... we don't want you to descend into R purgatory, LOL)_
+
+```{r}
+# load packages car and tidyverse
+# which loads dplyr and ggplot2
+library(car)
+library(tidyverse)
+```
+
+## The Data - `Davis` dataset in the `car` package
+
+The `Davis` dataset in the `car` package contains data on the measured and reported heights and weights of men and women engagedin regular exercise. _[For more information, type `?car::Davis` in the Console to bring up the HELP pages on the `Davis` dataset in the `car` package.]_
+
+Use tools within the `dplyr` package as much as possible to answer the following questions.
+
+##### **Question 1:** What kind of R object is the `Davis` dataset?
+
+```{r}
+class(car::Davis)
+```
+
+##### **Question 2:** How many observations are in the `Davis` dataset?
+
+```{r}
+# base r approach
+dim(car::Davis)
+
+# dplyr approach
+car::Davis %>%
+  summarise(n = n())
+```
+
+##### **Question 3:** For reported weight, how many observations have a missing value?
+
+```{r}
+# base r approach
+summary(car::Davis$repwt)
+
+# dplyr approach
+# this is challenging
+car::Davis %>%
+  summarise_all(funs(sum(is.na(.))))
+
+# purrr approach
+# not covered in class yet
+car::Davis %>% map(~ sum(is.na(.)))
+```
+
+##### **Question 4:** How many observations have no missing values? _(HINT: find complete cases)_
+
+```{r}
+# Base r approach
+nomiss <- complete.cases(car::Davis)
+sum(nomiss)
+
+# dplyr approach
+davisComplete <-  car::Davis %>% 
+  filter(complete.cases(.))
+
+davisComplete %>%
+  summarise(n = n())
+
+# all together - dplyr approach
+car::Davis %>% 
+  filter(complete.cases(.)) %>%
+  summarise(n = n())
+```
+
+---
+
+Create a subset containing only females.
+
+##### **Question 5:** How many females are in this subset?
+
+```{r}
+# dplyr approach
+davisFonly <- car::Davis %>%
+  filter(sex == "F")
+
+davisFonly %>% 
+  summarise(n = n())
+
+# base r approach to get number F and M
+table(car::Davis$sex)
+summary(car::Davis$sex)
+```
+
+---
+
+That last question was an opportunity for you to show-off your `dplyr` confidence. 
+
+*Now* return to the overall dataset with both males and females.
+
+Body mass index is one way to quantify the amount of tissue mass (muscle, fat, and bone) in an individual, then categorize that person as _underweight_, _normal_ _weight_, _overweight_, or _obese_ according to that value. 
+
+We calculate the BMI as the **ratio of the weight in kilograms divided by the square of the height in meters**, and the categorization based on BMI is as follows:
+
+### BMI Categories
+
+ Category    | BMI range (kg/m2)   
+ ----------- | ------------------- 
+ Underweight | <18.5              
+ Normal      | 18.5 to <25              
+ Overweight  | 25 to <30                
+ Obese       | 30 or higher                  
+
+Create the BMI variable and then a variable to depict BMI category. Note that the `height` variable is in centimeters, and `weight` is in kg. You need to create the BMI variable using the correct formula. 
+
+Now answer these questions:
+
+##### **Question 6:** What is the average BMI for these individuals?
+
+```{r}
+# dplyr approach to compute bmi
+Davis <- car::Davis %>%
+  mutate(bmi = weight/(height/100)^2) 
+
+# dplyr approach to get mean bmi
+Davis %>%
+  summarise(meanbmi = mean(bmi))
+
+# base r approach
+mean(Davis$bmi)
+```
+
+##### **Question 7:** How do these individuals fall into the BMI categories (what are the frequencies and relative %'s)?
+
+```{r}
+# dplyr approach for recoding
+# using mutate() and if_else() functions
+Davis <- Davis %>%
+  mutate(bmicat = if_else(bmi<18.5,
+                        "1. underweight",
+                        if_else(bmi<25,
+                                "2. normal",
+                                if_else(bmi<30,
+                                        "3. overweight",
+                                        "4. obese",
+                                        "missing"),
+                                "missing"),
+                        "missing"))
+
+# dplyr approach to get counts
+# of bmi categories
+Davis %>% 
+  count(bmicat)
+
+# base r approach for counts
+table(Davis$bmicat)
+summary(as.factor(Davis$bmicat))
+
+# optional - alternate ways to get 
+# frequency summary tables
+# this uses the gmodels package
+library(gmodels)
+gmodels::CrossTable(x=Davis$bmicat, y=Davis$sex)
+
+# optional - a nice way to get a formatted
+# table of the counts for bmi categories
+library(janitor)
+Davis %>%
+  janitor::tabyl(bmicat)
+
+# keep the janitor::tabyl output
+# and make a table using knitr::kable()
+t1 <- Davis %>%
+  janitor::tabyl(bmicat)
+
+knitr::kable(t1)
+```
+
+----
+
+## Test your graphing skills using `ggplot2`
+
+Using the `Davis` dataset from the `car` package, create the following graphics/figures using `ggplot()` and associated `geom_xxx()` functions.
+
+##### **Question 8:** Create a histogram of BMI. 
+
+_What do you notice about the distribution (any outliers or skewness)?_
+
+```{r}
+# base r
+hist(Davis$bmi)
+
+# dplyr approach
+ggplot(Davis, aes(bmi)) +
+  geom_histogram()
+
+# there is an outlier - update plot or 
+# data to exclude outlier in plot
+
+Davis2 <- Davis %>%
+  filter(bmi < 100)
+
+ggplot(Davis2, aes(bmi)) +
+  geom_histogram()
+
+# add density curve overlay to histogram
+Davis2 %>%
+  ggplot(aes(bmi)) +
+  geom_histogram(aes(y=..density..),
+                 colour="black",fill="yellow",
+                 binwidth=1) +
+  geom_density(alpha=.2, fill="blue")
+```
+
+##### **Question 9:** Create side-by-side boxplots of the BMI distributions by gender
+
+_Remember to remove any outliers if needed_
+
+```{r}
+# boxplots of bmi by gender
+Davis2 %>% ggplot(aes(x=sex, y=bmi)) +
+  geom_boxplot()
+```
+
+##### **Question 10:** Create a clustered bar chart of the BMI categories by gender
+
+_(note: the y-axis should be counts)_
+
+```{r}
+# cluster barchart of bmi categories by gender
+Davis2 %>% ggplot(aes(x=bmicat, fill=sex)) +
+  geom_bar(position = "dodge")
+```
+
